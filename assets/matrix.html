@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Matrix Rain</title>
+  <style>
+    /* Fill the entire viewport with no scroll-bars */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <script>
+    "use strict";
+
+    const canvas = document.getElementById("c");
+    const ctx    = canvas.getContext("2d");
+
+    // Character set – classic Katakana + ASCII digits
+    const CHARS =
+      "アイウエオカキクケコサシスセソタチツテトナニヌネノ" +
+      "ハヒフヘホマミムメモヤユヨラリルレロワヲン" +
+      "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    const FONT_SIZE  = 16;   // px per character cell
+    const BASE_SPEED = 1.5;  // columns per frame (average)
+    const FG_COLOR   = "#0f0";   // bright green (head character)
+    const FADE_FILL  = "rgba(0, 0, 0, 0.05)"; // controls trail persistence
+
+    let cols, drops, speeds;
+
+    function resize() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+      init();
+    }
+
+    function init() {
+      cols  = Math.floor(canvas.width / FONT_SIZE);
+      drops = new Array(cols).fill(1);
+      // Each column gets a slightly different fall speed for variety
+      speeds = Array.from({ length: cols }, () =>
+        BASE_SPEED * (0.5 + Math.random())
+      );
+    }
+
+    function randomChar() {
+      return CHARS[Math.floor(Math.random() * CHARS.length)];
+    }
+
+    let lastTime = 0;
+    const TARGET_FPS = 30;
+    const FRAME_INTERVAL = 1000 / TARGET_FPS;
+
+    function draw(timestamp) {
+      requestAnimationFrame(draw);
+
+      const elapsed = timestamp - lastTime;
+      if (elapsed < FRAME_INTERVAL) return;
+      lastTime = timestamp - (elapsed % FRAME_INTERVAL);
+
+      // Semi-transparent black overlay creates the fading trail effect
+      ctx.fillStyle = FADE_FILL;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.font = `bold ${FONT_SIZE}px monospace`;
+
+      for (let i = 0; i < cols; i++) {
+        const x = i * FONT_SIZE;
+        const y = Math.floor(drops[i]) * FONT_SIZE;
+
+        // Leading character – bright white/green flash
+        ctx.fillStyle = "#cfc";
+        ctx.fillText(randomChar(), x, y);
+
+        // Secondary character just behind – bright green
+        if (y > FONT_SIZE) {
+          ctx.fillStyle = FG_COLOR;
+          ctx.fillText(randomChar(), x, y - FONT_SIZE);
+        }
+
+        // Advance the drop
+        drops[i] += speeds[i];
+
+        // Reset to top with a random delay once a drop goes off-screen
+        if (drops[i] * FONT_SIZE > canvas.height && Math.random() > 0.975) {
+          drops[i] = 0;
+        }
+      }
+    }
+
+    window.addEventListener("resize", resize);
+    resize();
+    requestAnimationFrame(draw);
+  </script>
+</body>
+</html>
