@@ -1,6 +1,7 @@
 # AnimatedDesktop
 
-Animated wallpaper engine for Windows 10 and later.
+Matrix cascade wallpaper engine for Windows 10 and later.
+Renders falling binary digits (0 and 1) in classic green-on-black Matrix style as your live desktop wallpaper.
 
 ## Installation
 
@@ -37,9 +38,23 @@ After installation, launch AnimatedDesktop in one of two ways:
 powershell.exe -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\AnimatedDesktop\AnimatedDesktop.ps1"
 ```
 
-The application opens a small control window.  
-Press **Start** to begin cycling the desktop wallpaper through an animated colour gradient.  
+The application opens a small control window with a live Matrix preview.  
+Press **Start** to begin — falling binary digits cascade across the desktop wallpaper in green-on-black Matrix style.  
 Press **Stop** to pause, or close the window to exit.
+
+Optional parameters can be passed on the command line:
+
+| Parameter | Values | Default | Effect |
+|---|---|---|---|
+| `-Speed` | `Slow` / `Normal` / `Fast` | `Normal` | Frame interval (300 / 150 / 80 ms) |
+| `-FontSize` | `8`–`32` | `14` | Matrix character font size in points |
+| `-Density` | `0.1`–`1.0` | `0.75` | Fraction of columns active at any moment |
+
+Example — fast, large characters, maximum density:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File AnimatedDesktop.ps1 -Speed Fast -FontSize 18 -Density 1.0
+```
 
 ## What the installer does
 
@@ -61,7 +76,9 @@ After running the installer, verify the following:
 | Install directory exists | `Test-Path "$env:LOCALAPPDATA\AnimatedDesktop\AnimatedDesktop.ps1"` returns `True` |
 | Start-Menu shortcut exists | `Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\AnimatedDesktop.lnk"` returns `True` |
 | App launches | Double-click the Start-Menu shortcut — the AnimatedDesktop window should open |
-| Animation works | Click **Start** in the window — the desktop wallpaper should begin cycling through colours |
+| Preview visible | The control window contains a black preview panel |
+| Animation works | Click **Start** — falling 0/1 digits in green cascade across the desktop wallpaper; the preview panel animates in sync |
+| No crash after 60 s | Leave running for at least one minute — the app must remain stable |
 | Stop works | Click **Stop** — the wallpaper cycling pauses |
 | Uninstall cleans up | Run `.\install.ps1 -Uninstall`; confirm both the install directory and the shortcut are removed |
 
