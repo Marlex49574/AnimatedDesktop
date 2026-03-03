@@ -56,6 +56,24 @@ Example — fast, large characters, maximum density:
 powershell.exe -ExecutionPolicy Bypass -File AnimatedDesktop.ps1 -Speed Fast -FontSize 18 -Density 1.0
 ```
 
+## Matrix cascade — how it works
+
+Each screen column has an independent "drop" — a stream of binary digits (0 and 1) that falls downward at a random speed.
+
+- **Falling motion** — every timer tick the drop's head advances by 1–3 rows.  The tail fades from bright green at the top to near-black at the bottom, and the leading character is drawn in white.
+- **Character mutation** — on each tick one randomly chosen character in every trail is re-randomised (0 or 1).  This produces the characteristic flickering effect seen in the film.
+- **Column recycling** — when a drop scrolls completely off the bottom of the screen it is reset to a random position above the top with a new random length and speed, so the screen is always full of active columns.
+- **Density** — the `-Density` parameter (0.1–1.0) controls the fraction of columns that start active; the rest are given a random delay before appearing.
+
+## Shutdown handling
+
+Closing the AnimatedDesktop window with the **X** button (or any other close action) is handled in two stages:
+
+1. **`FormClosing`** — fires as soon as the close is requested.  At this point the timer is stopped and an `$IsClosing` flag is set.  Any timer tick that is already queued checks this flag and returns immediately without touching any UI controls.
+2. **`FormClosed`** — fires after the form is fully closed.  All GDI objects (font, brushes) and the preview bitmap are disposed here, and the temporary wallpaper BMP file is deleted.
+
+This two-stage approach prevents "object disposed" / "invalid operation" errors that would otherwise occur if a timer tick fired between the form starting to close and its controls being torn down.
+
 ## What the installer does
 
 1. **Checks prerequisites** — Windows 10+, PowerShell 5.1+, .NET runtime.

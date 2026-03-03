@@ -73,6 +73,7 @@ $script:Rng                  = New-Object System.Random
 $script:Drops                = @()
 $script:MatrixFont           = $null  # created lazily; disposed on FormClosed
 $script:MaxStatusMsgLength   = 55     # max chars shown in the status-bar error summary
+$script:IsClosing            = $false # set in FormClosing to block late-firing ticks
 
 # Pre-compute green brush palette (one brush per brightness level 0-255)
 $script:GreenBrushes = [System.Drawing.SolidBrush[]]( 0..255 | ForEach-Object {
@@ -114,6 +115,13 @@ function Initialize-MatrixDrops {
 function Step-MatrixDrops {
     foreach ($drop in $script:Drops) {
         $drop.Head += $drop.Speed
+
+        # Randomly mutate one character in the trail each tick (Matrix flicker effect)
+        if ($drop.Chars.Length -gt 0) {
+            $mutIdx = $script:Rng.Next($drop.Chars.Length)
+            $drop.Chars[$mutIdx] = if ($script:Rng.Next(2) -eq 0) { '0' } else { '1' }
+        }
+
         if (($drop.Head - $drop.Len) -gt $drop.NumRows) {
             $drop.Head  = -$script:Rng.Next(5, 30)
             $drop.Len   = 5 + $script:Rng.Next(20)
@@ -267,6 +275,7 @@ $form.Controls.Add($lblVer)
 $timer          = New-Object System.Windows.Forms.Timer
 $timer.Interval = $script:AnimationIntervalMs
 $timer.Add_Tick({
+    if ($script:IsClosing) { return }
     try {
         Step-MatrixDrops
 
@@ -276,18 +285,22 @@ $timer.Add_Tick({
             $bmp = New-MatrixWallpaper
 
             # Hand off bitmap to PictureBox (StretchImage scales it for preview)
-            $old = $preview.Image
-            $preview.Image = $bmp
-            $bmp = $null          # ownership transferred; do not dispose below
-            if ($null -ne $old) { $old.Dispose() }
+            if (-not $preview.IsDisposed) {
+                $old = $preview.Image
+                $preview.Image = $bmp
+                $bmp = $null          # ownership transferred; do not dispose below
+                if ($null -ne $old) { $old.Dispose() }
+            }
         } finally {
             if ($null -ne $bmp) { $bmp.Dispose() }
         }
     } catch {
         # Log the error to the status label but keep running -- prevents crashes
-        $msg = [string]$_.Exception.Message
-        if ($msg.Length -gt $script:MaxStatusMsgLength) { $msg = $msg.Substring(0, $script:MaxStatusMsgLength) + '...' }
-        $lblStatus.Text = "Status: Running  [!] $msg"
+        if (-not $script:IsClosing -and -not $lblStatus.IsDisposed) {
+            $msg = [string]$_.Exception.Message
+            if ($msg.Length -gt $script:MaxStatusMsgLength) { $msg = $msg.Substring(0, $script:MaxStatusMsgLength) + '...' }
+            $lblStatus.Text = "Status: Running  [!] $msg"
+        }
     }
 })
 
@@ -313,8 +326,13 @@ $btnStop.Add_Click({
     $btnStop.BackColor   = [System.Drawing.Color]::FromArgb(50, 50, 50)
 })
 
-$form.Add_FormClosed({
+$form.Add_FormClosing({
+    $script:IsClosing = $true
     $timer.Stop()
+})
+
+$form.Add_FormClosed({
+    $timer.Stop()   # defensive: belt-and-suspenders in case FormClosing was skipped
     $timer.Dispose()
     # Dispose cached GDI resources
     if ($null -ne $script:MatrixFont -and -not $script:MatrixFont.IsDisposed) {
