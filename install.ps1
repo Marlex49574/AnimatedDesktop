@@ -280,38 +280,28 @@ function Install-FromRelease {
 # ---------------------------------------------------------------------------
 
 function Install-FromSource {
-    Write-Header 'No release found -- building from source'
-
-    # Verify git is available
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        Write-Fail 'git is required to build from source.'
-        Write-Host '       Download: https://git-scm.com/download/win' -ForegroundColor Yellow
-        exit 1
-    }
-
-    $srcDir = Join-Path ([System.IO.Path]::GetTempPath()) "AnimatedDesktop-src-$PID"
-
-    Write-Host '  Cloning repository...' -NoNewline
-    git clone --depth 1 'https://github.com/Marlex49574/AnimatedDesktop.git' $srcDir 2>&1 |
-        Out-Null
-    Write-Host ' done.' -ForegroundColor Green
-
-    # Build step -- extend this block when a build system is added to the repo
-    # (e.g. dotnet build, msbuild, cmake)
-    Write-Warn 'No build system detected; skipping compilation.'
-    Write-Warn 'Once source files are added, extend the build block in install.ps1.'
+    Write-Header 'No release found -- installing from source'
 
     if (-not (Test-Path $InstallDir)) {
         New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
     }
 
-    # Copy everything except .git
-    Copy-Item -Path "$srcDir\*" -Destination $InstallDir -Recurse -Force `
-        -Exclude '.git'
+    # When run from a local clone, $PSScriptRoot points to the repo directory
+    $localScript = if ($PSScriptRoot) { Join-Path $PSScriptRoot 'AnimatedDesktop.ps1' } else { $null }
 
-    Remove-Item -Recurse -Force $srcDir -ErrorAction SilentlyContinue
-
-    Write-Ok "Source copied to $InstallDir"
+    if ($localScript -and (Test-Path $localScript)) {
+        Copy-Item -Path $localScript -Destination $InstallDir -Force
+        Write-Ok 'AnimatedDesktop.ps1 copied from local source'
+    }
+    else {
+        # Running via one-liner (irm | iex) -- download directly from raw GitHub
+        $rawUrl  = 'https://raw.githubusercontent.com/Marlex49574/AnimatedDesktop/main/AnimatedDesktop.ps1'
+        $destPs1 = Join-Path $InstallDir 'AnimatedDesktop.ps1'
+        Write-Host '  Downloading AnimatedDesktop.ps1...' -NoNewline
+        Invoke-Download -Url $rawUrl -Destination $destPs1
+        Write-Host ' done.' -ForegroundColor Green
+        Write-Ok "AnimatedDesktop.ps1 downloaded to $InstallDir"
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -320,20 +310,23 @@ function Install-FromSource {
 
 function New-StartMenuShortcut {
     [CmdletBinding(SupportsShouldProcess)]
-    param([string] $TargetExe)
+    param([string] $ScriptPath)
 
-    if (-not (Test-Path $TargetExe)) {
-        Write-Warn "Executable not found at $TargetExe -- shortcut skipped"
+    if (-not (Test-Path $ScriptPath)) {
+        Write-Warn "Script not found at $ScriptPath -- shortcut skipped"
         return
     }
 
     $shortcutDir  = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs"
     $shortcutPath = Join-Path $shortcutDir 'AnimatedDesktop.lnk'
+    $psExe        = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
 
     if ($PSCmdlet.ShouldProcess($shortcutPath, 'Create Start-Menu shortcut')) {
         $wsh  = New-Object -ComObject WScript.Shell
         $link = $wsh.CreateShortcut($shortcutPath)
-        $link.TargetPath       = $TargetExe
+        $link.TargetPath       = $psExe
+        # -WindowStyle Hidden suppresses the console; the WinForms window provides the UI
+        $link.Arguments        = "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ScriptPath`""
         $link.WorkingDirectory = $InstallDir
         $link.Description      = 'AnimatedDesktop -- animated wallpaper engine'
         $link.Save()
@@ -358,11 +351,9 @@ if ($Uninstall) {
 
 Test-Prerequisite
 
-# Resolve the main executable name (update when a real binary is shipped)
-$exeName = 'AnimatedDesktop.exe'
-$exePath = Join-Path $InstallDir $exeName
+$scriptPath = Join-Path $InstallDir 'AnimatedDesktop.ps1'
 
-# Try GitHub releases first; fall back to cloning the repo
+# Try GitHub releases first; fall back to source install
 $release = Get-LatestRelease
 if ($release) {
     Install-FromRelease -Release $release
@@ -372,7 +363,7 @@ else {
     Install-FromSource
 }
 
-New-StartMenuShortcut -TargetExe $exePath
+New-StartMenuShortcut -ScriptPath $scriptPath
 
 # Record the installed version
 $versionFile = Join-Path $InstallDir 'VERSION.txt'
@@ -386,4 +377,6 @@ else {
 Write-Host ''
 Write-Host '  [OK]  AnimatedDesktop installed successfully!' -ForegroundColor Green
 Write-Host "        Location : $InstallDir" -ForegroundColor Gray
+Write-Host "        Launch   : Start Menu -> AnimatedDesktop" -ForegroundColor Gray
+Write-Host "                   or: powershell.exe -ExecutionPolicy Bypass -File `"$scriptPath`"" -ForegroundColor Gray
 Write-Host ''
