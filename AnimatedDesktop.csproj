@@ -12,6 +12,12 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!-- Suppress the WindowsBase version-conflict warning that originates from
+         the WebView2 package pulling in its WPF bindings (Wpf.dll targets net5.0
+         and references WindowsBase 5.0 while net8.0 ships WindowsBase 4.0).
+         This project uses only the WinForms WebView2 binding, so the WPF DLL is
+         never loaded at runtime and the version mismatch is harmless. -->
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
