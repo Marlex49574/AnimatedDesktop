@@ -1,0 +1,51 @@
+name: Build
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+      - 'install.ps1'
+      - 'AnimatedDesktop.ps1'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'install.ps1'
+      - 'AnimatedDesktop.ps1'
+
+jobs:
+  build:
+    name: Build (.NET 8 / Windows)
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore NuGet packages
+        run: dotnet restore
+
+      - name: Build (Release)
+        run: dotnet build -c Release --no-restore
+
+      - name: Publish self-contained executable
+        run: >
+          dotnet publish -c Release
+          --no-restore
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -o publish/
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnimatedDesktop-win-x64
+          path: publish/AnimatedDesktop.exe
+          if-no-files-found: error
